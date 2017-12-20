@@ -1,0 +1,7 @@
+[package]
+name = "tor-control"
+version = "0.1.0"
+authors = ["Nick Mathewson <nickm@torproject.org>"]
+
+[dependencies]
+rand = "0.3"
