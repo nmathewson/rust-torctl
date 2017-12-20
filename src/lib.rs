@@ -1,4 +1,7 @@
 
+#[macro_use]
+extern crate nom;
+
 extern crate rand;
 
 pub mod command;

@@ -4,9 +4,6 @@ use rand;
 
 use reply;
 
-pub struct DummyReply {}
-impl reply::Reply for DummyReply {}
-
 pub trait Command {
     type Reply : reply::Reply;
     fn encode_into<W>(&self, &mut W) -> Result<(), io::Error>
@@ -35,7 +32,7 @@ impl<'a> SetConf<'a> {
 }
 
 impl<'a> Command for SetConf<'a> {
-    type Reply = DummyReply;
+    type Reply = reply::BasicReply;
     fn encode_into<W>(&self, w : &mut W) -> Result<(),io::Error>
         where W : Write + ?Sized {
         write!(w, "SETCONF ")?;
@@ -68,7 +65,7 @@ impl<'a> GetConf<'a> {
 }
 
 impl<'a> Command for GetConf<'a> {
-    type Reply = DummyReply;
+    type Reply = reply::BasicReply;
     fn encode_into<W>(&self, w : &mut W) -> Result<(),io::Error>
         where W : Write + ?Sized {
         write!(w, "GETCONF")?;
@@ -99,7 +96,7 @@ impl<'a> Authenticate<'a> {
 }
 
 impl<'a> Command for Authenticate<'a> {
-    type Reply = DummyReply;
+    type Reply = reply::BasicReply;
     fn encode_into<W>(&self, w : &mut W) -> Result<(),io::Error>
         where W : Write + ?Sized {
         write!(w, "AUTHENTICATTE ")?;
@@ -138,7 +135,7 @@ impl ProtocolInfo {
 }
 
 impl Command for ProtocolInfo {
-    type Reply = DummyReply;
+    type Reply = reply::BasicReply;
     fn encode_into<W>(&self, w : &mut W) -> Result<(),io::Error>
         where W : Write + ?Sized {
         write!(w, "PROTOCOLINFO 1\r\n")
@@ -168,7 +165,7 @@ impl AuthChallenge {
 }
 
 impl Command for AuthChallenge {
-    type Reply = DummyReply;
+    type Reply = reply::BasicReply;
     fn encode_into<W>(&self, w : &mut W) -> Result<(),io::Error>
         where W : Write + ?Sized {
         write!(w, "AUTHCHALLENGE ")?;
