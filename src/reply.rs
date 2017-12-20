@@ -1,4 +1,3 @@
-#![allow(unused)]
 
 use nom::{IResult,Needed,digit,crlf};
 use std::str::{self,FromStr};
@@ -10,21 +9,41 @@ pub trait Reply : Sized {
     fn is_ok(&self) -> bool;
 }
 
+// reply that either succeeds or fails.
 pub struct BasicReply (
     Result<(), String>
 );
 
 impl Reply for BasicReply {
     fn parse(inp:&[u8]) -> IResult<&[u8],Self,Error> {
-        IResult::Done(inp, BasicReply(Ok(())))
+        match generic_reply(inp) {
+            IResult::Done(rest, replybody) => {
+                assert!(replybody.lines.len() > 0);
+                if code_is_success(replybody.lines[0].code) {
+                    IResult::Done(rest, BasicReply(Ok(())))
+                } else {
+                    IResult::Done(rest,
+                              BasicReply(
+                                  Err(String::from_utf8(replybody.lines[0]
+                                                        .content.to_vec())
+                                      .unwrap()) // XXXX unwrap!!!
+                              ))
+                }
+            },
+            IResult::Error(e) => { IResult::Error(e) }
+            IResult::Incomplete(n) => { IResult::Incomplete(n) }
+        }
     }
-    fn is_ok(&self) -> bool { true }
+    fn is_ok(&self) -> bool {
+        self.0.is_ok()
+    }
 }
 
 pub struct ReplyLine<'a> { // pub??? XXXX
     code : u16,
     more : bool,
     content : &'a [u8],
+    #[allow(unused)] // XXXXX
     data : &'a [u8],
 }
 
@@ -140,3 +159,8 @@ pub fn read_async_replies<'a>(input : &'a [u8]) -> (Vec<ReplyBody>, &'a [u8])
     }
     (result, inp)
 }
+
+fn code_is_success(code : u16) -> bool{
+    return code >= 200 && code < 300;
+}
+
