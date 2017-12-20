@@ -1,5 +1,6 @@
+#![allow(unused)]
 
-use nom::{IResult,digit,crlf};
+use nom::{IResult,Needed,digit,crlf};
 use std::str::{self,FromStr};
 
 type Error = u32;
@@ -20,14 +21,14 @@ impl Reply for BasicReply {
     fn is_ok(&self) -> bool { true }
 }
 
-struct ReplyLine<'a> {
+pub struct ReplyLine<'a> { // pub??? XXXX
     code : u16,
     more : bool,
     content : &'a [u8],
     data : &'a [u8],
 }
 
-struct ReplyBody<'a> {
+pub struct ReplyBody<'a> { // pub??? XXXXX
     lines : Vec<ReplyLine<'a>>
 }
 
@@ -110,4 +111,32 @@ fn generic_reply<'a>(input : &'a [u8])
         }
     }
     IResult::Done(inp, ReplyBody{ lines })
+}
+
+pub fn read_reply<'a, R : Reply>(input : &'a [u8])
+                             -> (Vec<ReplyBody>, IResult<&'a [u8], R, Error>)
+{
+    if input.len() == 0 {
+        return (Vec::new(), IResult::Incomplete(Needed::Unknown))
+    }
+
+    let (async_replies, rest) = read_async_replies(input);
+    (async_replies, R::parse(rest))
+}
+
+pub fn read_async_replies<'a>(input : &'a [u8]) -> (Vec<ReplyBody>, &'a [u8])
+{
+    let mut inp = input;
+    let mut result = Vec::new();
+    while inp.len() > 0 && inp[0] == b'6' {
+        match generic_reply(inp) {
+            IResult::Done(rest, reply) => {
+                inp = rest;
+                result.push(reply);
+            }
+            IResult::Error(_) => { break; }
+            IResult::Incomplete(_) => { break; }
+        }
+    }
+    (result, inp)
 }
