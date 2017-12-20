@@ -9,7 +9,7 @@ pub trait Reply : Sized {
     fn is_ok(&self) -> bool;
 }
 
-// reply that either succeeds or fails.
+// reply that either succeeds with no data, or fails.
 pub struct BasicReply (
     Result<(), String>
 );

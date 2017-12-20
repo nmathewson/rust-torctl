@@ -99,7 +99,7 @@ impl<'a> Command for Authenticate<'a> {
     type Reply = reply::BasicReply;
     fn encode_into<W>(&self, w : &mut W) -> Result<(),io::Error>
         where W : Write + ?Sized {
-        write!(w, "AUTHENTICATTE ")?;
+        write!(w, "AUTHENTICATE ")?;
         if self.is_password {
             write_quoted(w, self.authdata)?
         } else {
