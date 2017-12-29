@@ -186,8 +186,38 @@ impl Command for AuthChallenge {
 
 fn write_quoted<W>(w : &mut W, data:&[u8]) -> Result<(),io::Error>
     where W : Write + ?Sized {
+
+    fn needs_quoting(byte : &u8) -> bool {
+        match *byte {
+            // These need to be quoted, or QuotedString doesn't work.
+            b'\\' | b'\"' => true,
+            // Nothing else gets quoted
+            _ => false
+        }
+    }
+
     write!(w, "\"")?;
-    w.write_all(data)?; // doesn't actually quote anything.
+    let mut unwritten = data;
+    while unwritten.len() > 0 {
+        let next_quotable_idx = unwritten.iter().position(needs_quoting);
+        match next_quotable_idx {
+            None => {
+                w.write_all(unwritten)?;
+                break;
+            },
+            Some(0) => {
+                w.write_all(b"\\")?;
+                w.write_all(&unwritten[0..1])?;
+                unwritten = &unwritten[1..]
+            }
+            Some(pos) => {
+                w.write_all(&unwritten[..pos])?;
+                w.write_all(b"\\")?;
+                w.write_all(&unwritten[pos..pos+1])?;
+                unwritten = &unwritten[pos+1..];
+            }
+        }
+    }
     write!(w, "\"")
 }
 
@@ -224,7 +254,17 @@ mod tests {
 
     #[test]
     fn test_write_quoted() {
-        // XXXX
+        fn quote(data: &[u8]) -> Vec<u8> {
+            let mut result = Vec::new();
+            write_quoted(&mut result, data).unwrap();
+            result
+        }
+        assert_eq!(b"\"\"".to_vec(), quote(b""));
+        assert_eq!(b"\"abc def\"".to_vec(), quote(b"abc def"));
+        assert_eq!(b"\"abc \\\" def\"".to_vec(), quote(b"abc \" def"));
+        assert_eq!(b"\"abc \n def\"".to_vec(), quote(b"abc \n def"));
+        assert_eq!(b"\"\\\\abc\"".to_vec(), quote(b"\\abc"));
+        assert_eq!(b"\"abc \\\\\"".to_vec(), quote(b"abc \\"));
     }
 
     #[test]
