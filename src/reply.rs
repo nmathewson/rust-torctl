@@ -2,7 +2,24 @@
 use nom::{IResult,Needed,digit,crlf};
 use std::str::{self,FromStr};
 
-type Error = u32;
+type Error = u32; // nooo XXXX
+
+// Like take_until, but declares the input "incomplete" if the terminator
+// isn't found.
+macro_rules! take_until_flex (
+    ($i:expr, $substr:expr) => ( {
+        use nom::{Needed,FindSubstring,Slice};
+        let res : IResult<_,_> = match ($i).find_substring($substr) {
+            None => {
+                IResult::Incomplete(Needed::Unknown)
+            }, // XXXX size would be better
+            Some(index) => {
+                IResult::Done($i.slice(index..), $i.slice(0..index))
+            }
+        };
+        res
+    })
+);
 
 pub trait Reply : Sized {
     fn parse(&[u8]) -> IResult<&[u8],Self>;
@@ -10,6 +27,7 @@ pub trait Reply : Sized {
 }
 
 // reply that either succeeds with no data, or fails.
+#[derive(Clone,PartialEq,Debug)]
 pub struct BasicReply (
     Result<(), String>
 );
@@ -39,6 +57,7 @@ impl Reply for BasicReply {
     }
 }
 
+#[derive(Clone,PartialEq,Debug)]
 pub struct ReplyLine<'a> { // pub??? XXXX
     code : u16,
     more : bool,
@@ -47,14 +66,16 @@ pub struct ReplyLine<'a> { // pub??? XXXX
     data : &'a [u8],
 }
 
+#[derive(Clone,PartialEq,Debug)]
 pub struct ReplyBody<'a> { // pub??? XXXXX
     lines : Vec<ReplyLine<'a>>
 }
 
 fn validate_status_code(a : &[u8]) -> Result<u16,Error> {
     if a.len() != 3 {
-        Err(7)
+        Err(7) // XXXX 7
     } else {
+        // XXXX unwrap
         Ok( FromStr::from_str(str::from_utf8(a).unwrap()).unwrap() )
     }
 }
@@ -65,7 +86,7 @@ named!(status_code(&[u8]) -> u16,
 
 named!(linecontent(&[u8]) -> &[u8],
        do_parse!(
-           stuff : take_until!("\r\n") >>
+           stuff : take_until_flex!("\r\n") >>
            crlf >>
            (stuff)
        )
@@ -73,9 +94,8 @@ named!(linecontent(&[u8]) -> &[u8],
 
 named!(cmd_data(&[u8])->&[u8],
        do_parse!(
-           contents : take_until!(".\r\n") >>
-           tag!(".") >>
-           crlf >>
+           contents : take_until_flex!("\r\n.\r\n") >>
+           tag!("\r\n.\r\n") >>
                (contents)
        )
 );
@@ -93,7 +113,6 @@ named!(reply_line(&[u8]) -> ReplyLine,
                    continued : tag!(b"+") >>
                    content : linecontent >>
                    data : cmd_data >>
-                   crlf >>
                        ((continued, content, data))
                )
            ) >>
@@ -164,3 +183,47 @@ fn code_is_success(code : u16) -> bool{
     return code >= 200 && code < 300;
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nom::{IResult,Needed};
+
+    #[test]
+    fn test_validate_status_code() {
+        //assert_eq!(validate_status_code(b"abc"), Err(7));// XXXX
+        assert_eq!(validate_status_code(b"abcd"), Err(7));// XXXX
+        assert_eq!(validate_status_code(b"12"), Err(7));// XXXX
+        assert_eq!(validate_status_code(b"123"), Ok(123));
+    }
+
+    #[test]
+    fn test_reply_line() {
+        assert_eq!(reply_line(b"200 OK\r\n2"),
+                   IResult::Done(&b"2"[..],
+                                 ReplyLine{
+                                     code : 200, more: false, content: b"OK",
+                                     data : b""}));
+
+        assert_eq!(reply_line(b"205-it is all\r\n200 OK\r\n"),
+                   IResult::Done(&b"200 OK\r\n"[..],
+                                 ReplyLine{
+                                     code : 205, more: true,
+                                     content: b"it is all",
+                                     data : b""}));
+
+
+        assert_eq!(reply_line(
+            b"205+it is all\r\n200 OK\r\nfor now ...\r\n.\r\nfoo"),
+                   IResult::Done(&b"foo"[..],
+                                 ReplyLine{
+                                     code : 205, more: true,
+                                     content: b"it is all",
+                                     data : b"200 OK\r\nfor now ..."}));
+
+
+        assert_eq!(reply_line(b"200 OK here it is \r"),
+                   IResult::Incomplete(Needed::Unknown));
+
+    }
+
+}
